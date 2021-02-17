@@ -240,6 +240,11 @@ public:
     // parameter access
     const P &   par(void) const;
     void        setPar(const P &par);
+protected:
+    void momPhaseModSetup(void);
+    void momPhaseMod(LatticeComplex &ph);
+protected:
+    bool        hasPhase_{false};
 private:
     P par_;
 };
@@ -349,6 +354,36 @@ void Module<P>::setPar(const P &par)
 {
     par_ = par;
 }
+
+template <typename P>
+void Module<P>::momPhaseModSetup()
+{
+    envTmpLat(LatticeComplex, "ph");
+    envTmpLat(LatticeComplex, "coor");
+};
+
+template <typename P>
+void Module<P>::momPhaseMod(LatticeComplex &ph)
+{
+    
+if (!hasPhase_)
+    {
+    Complex i(0.0,1.0);
+    std::vector<Real> p;
+    envGetTmp(LatticeComplex, coor);
+    p  = strToVec<Real>(par().mom);
+    ph = Zero();
+    for(unsigned int mu = 0; mu < env().getNd(); mu++)
+    {
+        LatticeCoordinate(coor, mu);
+        ph = ph + (p[mu]/env().getDim(mu))*coor;
+    }
+    
+    ph = exp((Real)(2*M_PI)*i*ph);
+
+    hasPhase_ = true;
+    }
+};
 
 END_HADRONS_NAMESPACE
 

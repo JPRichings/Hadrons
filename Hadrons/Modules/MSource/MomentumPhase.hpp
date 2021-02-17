@@ -77,8 +77,11 @@ protected:
     // execution
     virtual void execute(void);
 private:
+    void momPhaseSetup(void);
+    void momPhase(LatticeComplex &ph);
+private:
     bool        hasPhase_{false};
-    std::string momphName_, tName_;
+    std::string tName_;
 };
 
 MODULE_REGISTER_TMP(MomentumPhase, TMomentumPhase<FIMPL>, MSource);
@@ -91,7 +94,6 @@ MODULE_REGISTER_TMP(ZMomentumPhase, TMomentumPhase<ZFIMPL>, MSource);
 template <typename FImpl>
 TMomentumPhase<FImpl>::TMomentumPhase(const std::string name)
 : Module<MomentumPhasePar>(name)
-, momphName_ (name + "_momph")
 , tName_ (name + "_t")
 {}
 
@@ -112,14 +114,40 @@ std::vector<std::string> TMomentumPhase<FImpl>::getOutput(void)
     return out;
 }
 
+template <typename FImpl>
+void TMomentumPhase<FImpl>::momPhaseSetup()
+{
+    envTmpLat(LatticeComplex, "ph");
+    envTmpLat(LatticeComplex, "coor");
+};
+
+template <typename FImpl>
+void TMomentumPhase<FImpl>::momPhase(LatticeComplex &ph)
+{
+  Complex i(0.0,1.0);
+  std::vector<Real> p;
+  envGetTmp(LatticeComplex, coor);
+  p  = strToVec<Real>(par().mom);
+  ph = Zero();
+  for(unsigned int mu = 0; mu < env().getNd(); mu++)
+  {
+      LatticeCoordinate(coor, mu);
+      ph = ph + (p[mu]/env().getDim(mu))*coor;
+      LOG(Message) << "seven " << ph << std::endl;
+  }
+  ph = exp((Real)(2*M_PI)*i*ph);
+  LOG(Message) << "eight " << ph << std::endl;
+};
+
 // setup ///////////////////////////////////////////////////////////////////////
 template <typename FImpl>
 void TMomentumPhase<FImpl>::setup(void)
 {
     envCreateLat(PropagatorField, getName());
     envCache(Lattice<iScalar<vInteger>>, tName_, 1, envGetGrid(LatticeComplex));
-    envCacheLat(LatticeComplex, momphName_);
-    envTmpLat(LatticeComplex, "coor");
+    //envTmpLat(LatticeComplex, "coor");
+    //envTmpLat(LatticeComplex, "ph");
+    momPhaseModSetup();
 }
 
 // execution ///////////////////////////////////////////////////////////////////
@@ -130,28 +158,66 @@ void TMomentumPhase<FImpl>::execute(void)
                  << " by momentum phase "
                  << par().mom << std::endl;
     auto  &out = envGet(PropagatorField, getName());
-    auto  &src   = envGet(PropagatorField, par().src);
-    auto  &ph  = envGet(LatticeComplex, momphName_);
+    auto  &src = envGet(PropagatorField, par().src);
+    auto  &ph  = envGet(LatticeComplex, getName() + "_tmp_ph");
     auto  &t   = envGet(Lattice<iScalar<vInteger>>, tName_);
     
-    if (!hasPhase_)
+    if (0)
     {
-        Complex           i(0.0,1.0);
-        std::vector<Real> p;
-
-        envGetTmp(LatticeComplex, coor);
-        p  = strToVec<Real>(par().mom);
-        ph = Zero();
-        for(unsigned int mu = 0; mu < env().getNd(); mu++)
+        if (!hasPhase_)
         {
-            LatticeCoordinate(coor, mu);
-            ph = ph + (p[mu]/env().getDim(mu))*coor;
+            Complex           i(0.0,1.0);
+            std::vector<Real> p;
+            
+            envGetTmp(LatticeComplex, coor);
+            p  = strToVec<Real>(par().mom);
+            ph = Zero();
+            for(unsigned int mu = 0; mu < env().getNd(); mu++)
+            {
+                LatticeCoordinate(coor, mu);
+                ph = ph + (p[mu]/env().getDim(mu))*coor;
+            }
+            ph = exp((Real)(2*M_PI)*i*ph);
+            LatticeCoordinate(t, Tp);
+
+            hasPhase_ = true;
         }
-        ph = exp((Real)(2*M_PI)*i*ph);
-        LatticeCoordinate(t, Tp);
-        hasPhase_ = true;
+
+        LOG(Message) << "ph0: " << ph << std::endl;
+
+        out = ph*src;
+
+        LOG(Message) << "out0: " << out << std::endl;
+
     }
+    else if (0)
+    
+    {
+        if (!hasPhase_)
+        {
+            momPhase(ph);
+            hasPhase_ = true;
+        }
+
+        LOG(Message) << "ph1: " << ph << std::endl;
+
+        out = ph*src;
+
+        LOG(Message) << "out1: " << out << std::endl;
+
+    }
+    else
+    {
+
+    momPhaseMod(ph);
+
+    LOG(Message) << "ph2: " << ph << std::endl;
+
     out = ph*src;
+
+    LOG(Message) << "out2: " << out << std::endl;
+    
+    }
 }
 
 END_MODULE_NAMESPACE
